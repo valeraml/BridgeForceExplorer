@@ -1,0 +1,601 @@
+<title>Truss Bridge Force Explorer</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+  :root {
+    --bg:#f4f6f8; --panel:#fff; --ink:#1d2330; --muted:#6b7280; --line:#e5e7eb;
+    --tension:#2563eb; --comp:#dc2626; --zero:#9ca3af; --accent:#1f3b4d; --move:#ea580c;
+  }
+  * { box-sizing:border-box; }
+  html { color-scheme:light; }
+  body { margin:0; font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; background:var(--bg); color:var(--ink); }
+  header { padding-block:14px; padding-left:max(16px, env(safe-area-inset-left, 0px)); padding-right:max(16px, env(safe-area-inset-right, 0px)); background:var(--accent); color:#fff; }
+  header h1 { margin:0; font-size:20px; }
+  header p { margin:4px 0 0; opacity:.85; font-size:14px; }
+  main { display:grid; grid-template-columns:minmax(0,1fr) 330px; gap:16px; padding-block:16px; padding-left:max(16px, env(safe-area-inset-left, 0px)); padding-right:max(16px, env(safe-area-inset-right, 0px)); }
+  @media (max-width:1050px) { main { grid-template-columns:1fr; } }
+  .card { background:var(--panel); border-radius:10px; box-shadow:0 1px 3px rgba(0,0,0,.08); padding:14px 16px; }
+  .card + .card { margin-top:16px; }
+  h2 { font-size:15px; margin:0 0 10px; }
+  svg { width:100%; height:auto; display:block; user-select:none; }
+  .joint { cursor:pointer; }
+  .joint circle.hit { fill:transparent; }
+  .joint:hover circle.dot { fill:#fde68a; }
+  .member { cursor:pointer; }
+  .member.hl line.bar { stroke:#f59e0b !important; }
+  .mlabel { font-size:13px; font-weight:600; paint-order:stroke; stroke:#fff; stroke-width:4px; stroke-linejoin:round; pointer-events:none; }
+  .jname { font-size:12px; fill:#475569; paint-order:stroke; stroke:#fff; stroke-width:3px; pointer-events:none; }
+  .loadtxt { font-size:13px; font-weight:700; fill:#111827; }
+  .legend { display:flex; gap:18px; flex-wrap:wrap; font-size:13px; color:var(--muted); margin-top:8px; align-items:center; }
+  .sw { display:inline-block; width:22px; height:6px; border-radius:3px; vertical-align:middle; margin-right:6px; }
+  .btns { display:flex; flex-wrap:wrap; gap:6px; }
+  button { font:inherit; font-size:13px; border:1px solid #cbd5e1; background:#fff; border-radius:6px; padding:6px 10px; cursor:pointer; }
+  button:hover { background:#f1f5f9; }
+  button.on { background:var(--accent); color:#fff; border-color:var(--accent); }
+  button.go { background:var(--move); color:#fff; border-color:var(--move); font-weight:600; min-width:84px; }
+  button.danger { color:#b91c1c; border-color:#fecaca; }
+  label { font-size:13px; }
+  select { font:inherit; font-size:13px; padding:5px 6px; border:1px solid #cbd5e1; border-radius:6px; }
+  .row { display:flex; align-items:center; gap:8px; margin:8px 0; flex-wrap:wrap; }
+  input[type=number] { width:90px; font:inherit; font-size:13px; padding:5px 6px; border:1px solid #cbd5e1; border-radius:6px; }
+  input[type=range] { flex:1; min-width:120px; }
+  .muted { color:var(--muted); font-size:12.5px; }
+  table { width:100%; border-collapse:collapse; font-size:13px; }
+  th, td { padding:4px 6px; border-bottom:1px solid var(--line); text-align:left; }
+  td.num { text-align:right; font-variant-numeric:tabular-nums; }
+  #table tr[data-m] { cursor:pointer; }
+  tr.hl td { background:#fef3c7; }
+  tr.selrow td { background:#ffedd5; font-weight:600; }
+  .T { color:var(--tension); font-weight:700; }
+  .C { color:var(--comp); font-weight:700; }
+  .Z { color:var(--zero); font-weight:700; }
+  .tablewrap { max-height:460px; overflow:auto; }
+  main > * { min-width:0; }
+  .sel-box { background:#f8fafc; border:1px solid var(--line); border-radius:8px; padding:10px; }
+  .notes { font-size:13px; color:#374151; line-height:1.5; }
+  .notes li { margin-bottom:3px; }
+  .mv-controls { display:grid; grid-template-columns:auto 1fr; gap:6px 12px; align-items:center; font-size:13px; }
+  .stats { display:flex; gap:22px; flex-wrap:wrap; font-size:13px; margin-top:6px; }
+  .disabled { opacity:.45; pointer-events:none; }
+</style>
+<header>
+  <h1>Truss Bridge Force Explorer</h1>
+  <p>Click any joint (deck <b>L</b> or top <b>U</b>) to add a weight, or send a moving weight across the bridge. Each member shows its force: <b>T</b> = tension (pulled), <b>C</b> = compression (pushed).</p>
+</header>
+
+<main>
+  <section>
+    <div class="card">
+      <svg id="bridge" aria-label="Truss bridge diagram"></svg>
+      <div class="legend">
+        <span><span class="sw" style="background:var(--tension)"></span>Tension (T)</span>
+        <span><span class="sw" style="background:var(--comp)"></span>Compression (C)</span>
+        <span><span class="sw" style="background:var(--zero)"></span>Zero-force member</span>
+        <span>Thicker bar = larger force</span>
+        <span id="totals"></span>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Moving weight</h2>
+      <div class="row">
+        <label><input type="checkbox" id="mvOn"> Send a weight across the bridge</label>
+        <button id="mvPlay" class="go">▶ Play</button>
+        <span id="mvShare" class="muted"></span>
+      </div>
+      <div class="mv-controls" id="mvControls">
+        <span>Position</span>
+        <div class="row" style="margin:0"><input type="range" id="mvPos" min="0" max="1000" value="0"><span id="mvPosTxt" style="width:110px"></span></div>
+        <span>Travels along</span>
+        <div class="btns"><button id="pathDeck" class="on">Deck (L0 → L6)</button><button id="pathTop">Top chord (U1 → U5)</button></div>
+        <span>Moving weight</span>
+        <div class="row" style="margin:0"><select id="mvMass"><option value="0.2">200 g</option><option value="0.5">500 g</option><option value="1" selected>1 kg</option><option value="2">2 kg</option></select><span id="mvMassN" class="muted"></span></div>
+        <span>Crossing time</span>
+        <div class="row" style="margin:0"><input type="range" id="mvSpeed" min="3" max="20" value="8"><span id="mvSpeedTxt" style="width:40px"></span></div>
+      </div>
+
+      <h2 style="margin-top:14px">Force in <select id="memberSel"></select> as the weight crosses</h2>
+      <svg id="chart" aria-label="Member force versus weight position"></svg>
+      <div class="stats" id="chartStats"></div>
+      <p class="muted">Click any member on the bridge (or in the table) to plot it. Fixed weights you have placed stay on while the moving weight crosses.</p>
+    </div>
+
+    <div class="card">
+      <h2>How it works</h2>
+      <ul class="notes">
+        <li>The bridge is modeled as an ideal 2D truss: pin joints, straight two-force members, weight of the members neglected.</li>
+        <li>Supports: <b>pin</b> at L0 (left) and <b>roller</b> at L6 (right). 12 joints, 21 members, 3 reactions: 2·12 = 21 + 3, so it is statically determinate.</li>
+        <li>Forces are found with the <b>method of joints</b>: at every joint ΣF<sub>x</sub> = 0 and ΣF<sub>y</sub> = 0, solved all at once.</li>
+        <li>Loads can act on the deck joints (L) or the top joints (U). Weights use g = 9.81 m/s² (500 g → 4.91 N).</li>
+        <li>A moving weight between two joints is shared by those joints in proportion to how close it is (like a deck plank resting on two floor beams). At 25 % of the way from L2 to L3, L2 carries 75 % and L3 carries 25 %.</li>
+        <li>The graph is the member's <b>influence line</b>: its force for every position of the weight. Look for members that switch between T and C as the weight passes!</li>
+      </ul>
+    </div>
+  </section>
+
+  <aside>
+    <div class="card">
+      <h2>1 · Choose a weight</h2>
+      <div class="btns" id="weights"></div>
+      <div class="row">
+        <label>Custom: <input type="number" id="customN" min="0" step="0.1" value="5"> N</label>
+        <button id="useCustom">Use</button>
+      </div>
+      <h2 style="margin-top:12px">2 · Clicking a joint will…</h2>
+      <div class="btns">
+        <button id="modeAdd" class="on">Add weight</button>
+        <button id="modeRemove">Remove one weight</button>
+        <button id="modeSelect">Just select</button>
+      </div>
+      <p class="muted" style="margin:8px 0 0">Works on deck joints L0–L6 and top joints U1–U5.</p>
+    </div>
+
+    <div class="card">
+      <h2>Selected joint</h2>
+      <div id="selBox" class="sel-box muted">Click a joint on the bridge.</div>
+    </div>
+
+    <div class="card">
+      <h2>Quick setups</h2>
+      <div class="btns">
+        <button id="presetCenter">1 kg at L3 (deck)</button>
+        <button id="presetTop">1 kg at U3 (top)</button>
+        <button id="presetUniform">500 g on each deck joint</button>
+        <button id="presetTopAll">500 g on each top joint</button>
+        <button id="presetEnd">1 kg at L1</button>
+        <button id="clearAll" class="danger">Clear all weights</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Geometry &amp; display</h2>
+      <div class="row"><label style="width:110px">Panel width</label><input type="range" id="pw" min="8" max="30" step="1" value="15"><span id="pwv"></span></div>
+      <div class="row"><label style="width:110px">Truss height</label><input type="range" id="ph" min="8" max="30" step="1" value="15"><span id="phv"></span></div>
+      <div class="row">
+        <label><input type="checkbox" id="showLabels" checked> Force labels</label>
+        <label><input type="checkbox" id="showNames" checked> Joint names</label>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Member forces</h2>
+      <div class="tablewrap"><table id="table"></table></div>
+      <p class="muted">Hover a row or a member to highlight it; click to plot it.</p>
+    </div>
+  </aside>
+</main>
+
+<script>
+const G = 9.81;
+const NB = 7;                 // bottom joints L0..L6
+const NJ = 12;
+const U = i => NB + i - 1;    // index of top joint Ui (U1..U5)
+
+const st = {
+  p: 0.15, h: 0.15,                       // panel width, height (m)
+  loads: Array.from({ length: NJ }, () => []), // fixed weights (N) per joint
+  sel: null,
+  mode: 'add',
+  addN: 0.5 * G,
+  showLabels: true, showNames: true,
+  selMember: 2,                           // member plotted in the chart (L2–L3)
+  mv: { on: false, pos: 0, N: 1 * G, path: 'deck', playing: false, time: 8 },
+};
+
+// ---------- Topology (matches the model in the photo) ----------
+const MEMBERS = [];
+const add = (a, b, group) => MEMBERS.push({ a, b, group });
+for (let i = 0; i < 6; i++) add(i, i + 1, 'Bottom chord');
+for (let i = 1; i < 5; i++) add(U(i), U(i + 1), 'Top chord');
+add(0, U(1), 'End post'); add(6, U(5), 'End post');
+for (let i = 1; i <= 5; i++) add(i, U(i), 'Vertical');
+add(U(1), 2, 'Diagonal'); add(U(3), 2, 'Diagonal');
+add(U(3), 4, 'Diagonal'); add(U(5), 4, 'Diagonal');
+const PIN = 0, ROLLER = 6;
+
+function joints() {
+  const J = [];
+  for (let i = 0; i < NB; i++) J.push({ name: 'L' + i, x: i * st.p, y: 0, bottom: true });
+  for (let i = 1; i <= 5; i++) J.push({ name: 'U' + i, x: i * st.p, y: st.h, bottom: false });
+  return J;
+}
+const mName = (J, k) => `${J[MEMBERS[k].a].name}–${J[MEMBERS[k].b].name}`;
+
+// ---------- Loads ----------
+const fixedAt = i => st.loads[i].reduce((s, v) => s + v, 0);
+
+// The moving weight is shared by the two joints on either side of it (lever rule).
+function movingShares(pos) {
+  const top = st.mv.path === 'top', n = top ? 4 : 6;
+  const s = pos * n, i = Math.min(n - 1, Math.floor(s)), t = s - i;
+  const j0 = top ? U(i + 1) : i, j1 = top ? U(i + 2) : i + 1;
+  return [{ j: j0, f: 1 - t }, { j: j1, f: t }];
+}
+function loadVector(pos) {             // pos = null → fixed weights only
+  const P = st.loads.map((_, i) => fixedAt(i));
+  if (pos != null) movingShares(pos).forEach(({ j, f }) => P[j] += f * st.mv.N);
+  return P;
+}
+
+// ---------- Solver: method of joints as a linear system ----------
+function solve(J, P) {
+  const nm = MEMBERS.length, n = nm + 3, rows = 2 * J.length;
+  const A = Array.from({ length: rows }, () => new Float64Array(n));
+  const b = new Float64Array(rows);
+  MEMBERS.forEach((m, k) => {
+    const a = J[m.a], c = J[m.b];
+    const L = Math.hypot(c.x - a.x, c.y - a.y);
+    const ex = (c.x - a.x) / L, ey = (c.y - a.y) / L;
+    // tension positive: member pulls each joint toward the other end
+    A[2 * m.a][k] += ex; A[2 * m.a + 1][k] += ey;
+    A[2 * m.b][k] -= ex; A[2 * m.b + 1][k] -= ey;
+  });
+  A[2 * PIN][nm] = 1; A[2 * PIN + 1][nm + 1] = 1; A[2 * ROLLER + 1][nm + 2] = 1;
+  J.forEach((_, i) => { b[2 * i + 1] = P[i]; }); // ΣF + (−P) = 0  →  A·x = P
+  for (let c = 0; c < n; c++) {                  // Gauss–Jordan with partial pivoting
+    let piv = c;
+    for (let r = c + 1; r < rows; r++) if (Math.abs(A[r][c]) > Math.abs(A[piv][c])) piv = r;
+    [A[c], A[piv]] = [A[piv], A[c]]; [b[c], b[piv]] = [b[piv], b[c]];
+    for (let r = 0; r < rows; r++) {
+      if (r === c || A[r][c] === 0) continue;
+      const f = A[r][c] / A[c][c];
+      for (let k = c; k < n; k++) A[r][k] -= f * A[c][k];
+      b[r] -= f * b[c];
+    }
+  }
+  const x = Array.from({ length: n }, (_, i) => b[i] / A[i][i]);
+  return { F: x.slice(0, nm), RyL: x[nm + 1], RyR: x[nm + 2] };
+}
+
+// ---------- Formatting ----------
+const fmt = v => (Math.abs(v) + 1e-9).toFixed(2); // epsilon keeps symmetric values rounding the same way
+function kind(v, ref) {
+  const tol = 1e-6 * Math.max(1, ref);
+  return Math.abs(v) < tol ? 'Z' : v > 0 ? 'T' : 'C';
+}
+const colorOf = k => k === 'T' ? 'var(--tension)' : k === 'C' ? 'var(--comp)' : 'var(--zero)';
+const massTxt = N => { const g = N / G * 1000; return g >= 1000 ? (g / 1000).toFixed(2).replace(/\.?0+$/, '') + ' kg' : Math.round(g) + ' g'; };
+function posInfo(pos) {                 // distance from the start joint and where the weight is
+  const top = st.mv.path === 'top', n = top ? 4 : 6, s = pos * n;
+  const name = i => top ? 'U' + (i + 1) : 'L' + i;
+  const i = Math.round(s);
+  const where = Math.abs(s - i) < 1e-3 ? `at ${name(i)}` : `${name(Math.floor(s))}–${name(Math.floor(s) + 1)}`;
+  return { cm: s * st.p * 100, where };
+}
+
+// ---------- Bridge drawing ----------
+const svg = document.getElementById('bridge');
+
+function render() {
+  const J = joints();
+  const mvPos = st.mv.on ? st.mv.pos : null;
+  const P = loadVector(mvPos);
+  const res = solve(J, P);
+  const totalLoad = P.reduce((s, v) => s + v, 0);
+  const maxF = Math.max(1e-9, ...res.F.map(Math.abs));
+
+  const W = 1100, mx = 80, top = 120, bottom = 170;
+  const s = (W - 2 * mx) / (6 * st.p);
+  const H = top + st.h * s + bottom;
+  const X = x => mx + x * s, Y = y => top + (st.h - y) * s;
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  const yDeck = Y(0);
+  let out = `<defs>
+    <marker id="arrG" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#15803d"/></marker>
+    <pattern id="hatch" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="8" stroke="#94a3b8" stroke-width="2"/></pattern>
+  </defs>`;
+
+  // Supports
+  const sup = (x, roller) => {
+    const y = yDeck + 12;
+    let g = `<path d="M${x},${yDeck + 8} L${x - 22},${y + 28} L${x + 22},${y + 28} z" fill="#cbd5e1" stroke="#475569" stroke-width="2"/>`;
+    let gy = y + 28;
+    if (roller) { g += `<circle cx="${x - 12}" cy="${gy + 7}" r="6" fill="#fff" stroke="#475569" stroke-width="2"/><circle cx="${x + 12}" cy="${gy + 7}" r="6" fill="#fff" stroke="#475569" stroke-width="2"/>`; gy += 14; }
+    g += `<rect x="${x - 38}" y="${gy}" width="76" height="10" fill="url(#hatch)"/><line x1="${x - 38}" y1="${gy}" x2="${x + 38}" y2="${gy}" stroke="#475569" stroke-width="2"/>`;
+    return { g, gy };
+  };
+  const sL = sup(X(0), false), sR = sup(X(6 * st.p), true);
+  out += sL.g + sR.g;
+  const react = (x, gy, R, label, kindTxt) => `
+    <line x1="${x}" y1="${gy + 60}" x2="${x}" y2="${gy + 16}" stroke="#15803d" stroke-width="3" marker-end="url(#arrG)" opacity="${Math.abs(R) < 1e-9 ? .35 : 1}"/>
+    <text x="${x}" y="${gy + 78}" text-anchor="middle" font-size="13" font-weight="700" fill="#15803d">${label} = ${fmt(R)} N</text>
+    <text x="${x}" y="${gy + 94}" text-anchor="middle" font-size="11" fill="#6b7280">${kindTxt}</text>`;
+  out += react(X(0), sL.gy, res.RyL, 'R<tspan font-size="10">L</tspan>', 'pin');
+  out += react(X(6 * st.p), sR.gy, res.RyR, 'R<tspan font-size="10">R</tspan>', 'roller');
+
+  // Selected (plotted) member halo
+  { const m = MEMBERS[st.selMember], a = J[m.a], c = J[m.b];
+    out += `<line x1="${X(a.x)}" y1="${Y(a.y)}" x2="${X(c.x)}" y2="${Y(c.y)}" stroke="#fdba74" stroke-width="24" stroke-linecap="round" opacity=".75"/>`; }
+
+  // Members
+  MEMBERS.forEach((m, k) => {
+    const a = J[m.a], c = J[m.b], F = res.F[k], kd = kind(F, totalLoad);
+    const w = totalLoad > 0 ? 5 + 9 * Math.abs(F) / maxF : 7;
+    const col = totalLoad > 0 ? colorOf(kd) : '#5b8399';
+    out += `<g class="member" data-m="${k}"><title>${a.name}–${c.name}: ${fmt(F)} N ${kd === 'Z' ? '(zero)' : kd} — click to plot</title>
+      <line class="bar" x1="${X(a.x)}" y1="${Y(a.y)}" x2="${X(c.x)}" y2="${Y(c.y)}" stroke="${col}" stroke-width="${w}" stroke-linecap="round"/>
+      <line x1="${X(a.x)}" y1="${Y(a.y)}" x2="${X(c.x)}" y2="${Y(c.y)}" stroke="transparent" stroke-width="18"/></g>`;
+  });
+
+  // Fixed weights
+  J.forEach((j, i) => {
+    const Pf = fixedAt(i); if (Pf <= 0) return;
+    const x = X(j.x), y = Y(j.y), n = st.loads[i].length;
+    const extra = n > 1 ? `${n} weights` : '';
+    if (j.bottom) {             // hanging below a deck joint
+      out += `<line x1="${x}" y1="${y + 12}" x2="${x}" y2="${y + 50}" stroke="#111827" stroke-width="2"/>
+        <path d="M${x - 20},${y + 52} h40 l4,34 h-48 z" fill="#1f2937"/>
+        <text x="${x}" y="${y + 74}" text-anchor="middle" font-size="11" fill="#fff" font-weight="700">${massTxt(Pf)}</text>
+        <text x="${x}" y="${y + 104}" text-anchor="middle" class="loadtxt">${fmt(Pf)} N</text>
+        <text x="${x}" y="${y + 119}" text-anchor="middle" font-size="11" fill="#6b7280">${extra}</text>`;
+    } else {                    // sitting on top of a top joint
+      out += `<path d="M${x - 20},${y - 13} h40 l-4,-34 h-32 z" fill="#1f2937"/>
+        <text x="${x}" y="${y - 25}" text-anchor="middle" font-size="11" fill="#fff" font-weight="700">${massTxt(Pf)}</text>
+        <text x="${x}" y="${y - 56}" text-anchor="middle" class="loadtxt">${fmt(Pf)} N</text>
+        <text x="${x}" y="${y - 71}" text-anchor="middle" font-size="11" fill="#6b7280">${extra}</text>`;
+    }
+  });
+
+  // Moving weight (a cart riding on the deck or the top chord)
+  if (st.mv.on) {
+    const topPath = st.mv.path === 'top';
+    const xw = topPath ? st.p + st.mv.pos * 4 * st.p : st.mv.pos * 6 * st.p;
+    const x = X(xw), y = Y(topPath ? st.h : 0);
+    out += `<g pointer-events="none">
+      <rect x="${x - 42}" y="${y - 42}" width="84" height="26" rx="5" fill="var(--move)" stroke="#9a3412" stroke-width="2"/>
+      <text x="${x}" y="${y - 25}" text-anchor="middle" font-size="11" font-weight="700" fill="#fff">${massTxt(st.mv.N)} · ${fmt(st.mv.N)} N</text>
+      <circle cx="${x - 22}" cy="${y - 11}" r="6" fill="#374151"/><circle cx="${x + 22}" cy="${y - 11}" r="6" fill="#374151"/></g>`;
+  }
+
+  // Member labels
+  if (st.showLabels && totalLoad > 0) {
+    MEMBERS.forEach((m, k) => {
+      const a = J[m.a], c = J[m.b], F = res.F[k], kd = kind(F, totalLoad);
+      const x1 = X(a.x), y1 = Y(a.y), x2 = X(c.x), y2 = Y(c.y);
+      let ang = Math.atan2(y2 - y1, x2 - x1) * 180 / Math.PI;
+      if (ang > 90) ang -= 180; if (ang <= -90) ang += 180;
+      const cx = (x1 + x2) / 2, cy = (y1 + y2) / 2;
+      const t = kd === 'Z' ? '0' : `${fmt(F)} ${kd}`;
+      out += `<text class="mlabel" x="${cx}" y="${cy}" dy="-9" text-anchor="middle" fill="${colorOf(kd)}" transform="rotate(${ang} ${cx} ${cy})">${t}</text>`;
+    });
+  }
+
+  // Joints
+  J.forEach((j, i) => {
+    const x = X(j.x), y = Y(j.y), sel = st.sel === i;
+    out += `<g class="joint" data-j="${i}"><title>Joint ${j.name}</title>
+      ${sel ? `<circle cx="${x}" cy="${y}" r="17" fill="none" stroke="#f59e0b" stroke-width="4"/>` : ''}
+      <circle class="dot" cx="${x}" cy="${y}" r="10" fill="#fff" stroke="#1f3b4d" stroke-width="3"/>
+      <circle class="hit" cx="${x}" cy="${y}" r="20"/></g>`;
+    if (st.showNames) out += `<text class="jname" x="${x - 14}" y="${y + (j.bottom ? 26 : -18)}" text-anchor="end">${j.name}</text>`;
+  });
+
+  svg.innerHTML = out;
+  document.getElementById('totals').innerHTML =
+    `Total load: <b>${fmt(totalLoad)} N</b> · R<sub>L</sub> + R<sub>R</sub> = <b>${fmt(res.RyL + res.RyR)} N</b>`;
+  renderTable(J, res, totalLoad);
+  renderSel(J);
+  renderMoving(J, res);
+}
+
+function renderTable(J, res, totalLoad) {
+  let h = '<tr><th>Member</th><th>Type</th><th style="text-align:right">Force (N)</th><th></th></tr>';
+  MEMBERS.forEach((m, k) => {
+    const F = res.F[k], kd = kind(F, totalLoad);
+    h += `<tr data-m="${k}" class="${k === st.selMember ? 'selrow' : ''}"><td>${mName(J, k)}</td><td class="muted">${m.group}</td>
+      <td class="num">${fmt(F)}</td><td class="${kd}">${kd === 'Z' ? '0' : kd}</td></tr>`;
+  });
+  h += `<tr><td colspan="4" class="muted" style="padding-top:10px">Reactions</td></tr>
+    <tr><td>L0 (pin)</td><td class="muted">vertical</td><td class="num">${fmt(res.RyL)}</td><td>↑</td></tr>
+    <tr><td>L6 (roller)</td><td class="muted">vertical</td><td class="num">${fmt(res.RyR)}</td><td>↑</td></tr>`;
+  document.getElementById('table').innerHTML = h;
+}
+
+function renderSel(J) {
+  const box = document.getElementById('selBox');
+  if (st.sel === null) { box.className = 'sel-box muted'; box.innerHTML = 'Click a joint on the bridge.'; return; }
+  const i = st.sel, Pf = fixedAt(i), list = st.loads[i];
+  if (box.contains(document.activeElement) && document.activeElement.id === 'setN') return; // don't clobber typing
+  box.className = 'sel-box';
+  box.innerHTML = `<b>Joint ${J[i].name}</b> (${J[i].bottom ? 'deck / bottom chord' : 'top chord'})<br>
+    Load: <b>${fmt(Pf)} N</b> <span class="muted">(${massTxt(Pf)})</span>
+    <div class="muted" style="margin:4px 0">${list.length ? 'Weights: ' + list.map(massTxt).join(' + ') : 'No weights here.'}</div>
+    <div class="row"><label>Set load to <input type="number" id="setN" min="0" step="0.1" value="${Pf.toFixed(2)}"> N</label><button id="applyN">Set</button></div>
+    <div class="btns"><button id="selAdd">+ ${massTxt(st.addN)}</button><button id="selRem">− last weight</button><button id="selClr" class="danger">Clear joint</button></div>`;
+  document.getElementById('applyN').onclick = () => {
+    const v = parseFloat(document.getElementById('setN').value);
+    st.loads[i] = v > 0 ? [v] : []; render();
+  };
+  document.getElementById('selAdd').onclick = () => { st.loads[i].push(st.addN); render(); };
+  document.getElementById('selRem').onclick = () => { st.loads[i].pop(); render(); };
+  document.getElementById('selClr').onclick = () => { st.loads[i] = []; render(); };
+}
+
+// ---------- Moving weight panel + influence-line chart ----------
+const chart = document.getElementById('chart');
+let curveCache = { key: '', pts: [] };
+
+function curve(J) {
+  const key = JSON.stringify([st.p, st.h, st.loads, st.mv.N, st.mv.path, st.selMember]);
+  if (curveCache.key !== key) {
+    const pts = [];
+    for (let i = 0; i <= 240; i++) { const pos = i / 240; pts.push([pos, solve(J, loadVector(pos)).F[st.selMember]]); }
+    curveCache = { key, pts };
+  }
+  return curveCache.pts;
+}
+
+function niceStep(range) {
+  const raw = range / 5, mag = Math.pow(10, Math.floor(Math.log10(raw)));
+  const n = raw / mag;
+  return (n < 1.5 ? 1 : n < 3 ? 2 : n < 7 ? 5 : 10) * mag;
+}
+
+function renderMoving(J, res) {
+  // controls
+  document.getElementById('mvControls').classList.toggle('disabled', !st.mv.on);
+  const play = document.getElementById('mvPlay');
+  play.textContent = st.mv.playing ? '❚❚ Pause' : '▶ Play';
+  document.getElementById('mvPos').value = Math.round(st.mv.pos * 1000);
+  const pi = posInfo(st.mv.pos);
+  document.getElementById('mvPosTxt').textContent = `${pi.cm.toFixed(1)} cm (${pi.where})`;
+  document.getElementById('pathDeck').classList.toggle('on', st.mv.path === 'deck');
+  document.getElementById('pathTop').classList.toggle('on', st.mv.path === 'top');
+  document.getElementById('mvMassN').textContent = `= ${fmt(st.mv.N)} N`;
+  document.getElementById('mvSpeedTxt').textContent = st.mv.time + ' s';
+  document.getElementById('mvShare').innerHTML = st.mv.on
+    ? 'Shared by joints: ' + movingShares(st.mv.pos).filter(s => s.f > 1e-6)
+        .map(s => `<b>${J[s.j].name}</b> ${fmt(s.f * st.mv.N)} N`).join(' + ')
+    : '';
+  const sel = document.getElementById('memberSel');
+  if (sel.options.length !== MEMBERS.length) sel.innerHTML = MEMBERS.map((m, k) => `<option value="${k}">${mName(J, k)} (${m.group.toLowerCase()})</option>`).join('');
+  sel.value = st.selMember;
+
+  // chart
+  const pts = curve(J);
+  const W = 1100, H = 280, ml = 70, mr = 30, mt = 20, mb = 50;
+  const vals = pts.map(p => p[1]);
+  let lo = Math.min(0, ...vals), hi = Math.max(0, ...vals);
+  if (hi - lo < 1e-6) { lo = -1; hi = 1; }
+  const pad = (hi - lo) * 0.12; lo -= pad; hi += pad;
+  const X = t => ml + t * (W - ml - mr), Y = v => mt + (hi - v) / (hi - lo) * (H - mt - mb);
+  let o = `<rect x="${ml}" y="${mt}" width="${W - ml - mr}" height="${Y(0) - mt}" fill="#eff6ff"/>
+    <rect x="${ml}" y="${Y(0)}" width="${W - ml - mr}" height="${H - mb - Y(0)}" fill="#fef2f2"/>
+    <text x="${W - mr - 8}" y="${mt + 16}" text-anchor="end" font-size="13" font-weight="700" fill="var(--tension)">TENSION</text>
+    <text x="${W - mr - 8}" y="${H - mb - 8}" text-anchor="end" font-size="13" font-weight="700" fill="var(--comp)">COMPRESSION</text>`;
+  const step = niceStep(hi - lo);
+  for (let v = Math.ceil(lo / step) * step; v <= hi + 1e-9; v += step) {
+    const y = Y(v), z = Math.abs(v) < step / 1e6;
+    o += `<line x1="${ml}" x2="${W - mr}" y1="${y}" y2="${y}" stroke="${z ? '#334155' : '#e2e8f0'}" stroke-width="${z ? 1.5 : 1}"/>
+      <text x="${ml - 8}" y="${y + 4}" text-anchor="end" font-size="12" fill="#64748b">${z ? '0' : Math.abs(v).toFixed(step < 1 ? 1 : 0) + (v > 0 ? ' T' : ' C')}</text>`;
+  }
+  const n = st.mv.path === 'top' ? 4 : 6;
+  for (let i = 0; i <= n; i++) {
+    const x = X(i / n);
+    o += `<line x1="${x}" x2="${x}" y1="${mt}" y2="${H - mb}" stroke="#e2e8f0"/>
+      <text x="${x}" y="${H - mb + 18}" text-anchor="middle" font-size="12" fill="#475569">${st.mv.path === 'top' ? 'U' + (i + 1) : 'L' + i}</text>`;
+  }
+  o += `<text x="${(ml + W - mr) / 2}" y="${H - 8}" text-anchor="middle" font-size="12" fill="#64748b">Position of the ${massTxt(st.mv.N)} moving weight</text>
+    <text transform="translate(16 ${(mt + H - mb) / 2}) rotate(-90)" text-anchor="middle" font-size="12" fill="#64748b">Force (N)</text>`;
+  // curve, colored by sign
+  for (let i = 1; i < pts.length; i++) {
+    const [t0, v0] = pts[i - 1], [t1, v1] = pts[i], m = (v0 + v1) / 2;
+    const col = Math.abs(m) < 1e-6 ? 'var(--zero)' : m > 0 ? 'var(--tension)' : 'var(--comp)';
+    o += `<line x1="${X(t0)}" y1="${Y(v0)}" x2="${X(t1)}" y2="${Y(v1)}" stroke="${col}" stroke-width="3" stroke-linecap="round"/>`;
+  }
+  // current position marker
+  if (st.mv.on) {
+    const v = res.F[st.selMember], x = X(st.mv.pos), y = Y(v);
+    const kd = kind(v, st.mv.N);
+    o += `<line x1="${x}" x2="${x}" y1="${mt}" y2="${H - mb}" stroke="var(--move)" stroke-width="2" stroke-dasharray="5 4"/>
+      <circle cx="${x}" cy="${y}" r="7" fill="var(--move)" stroke="#fff" stroke-width="2"/>
+      <text x="${x + (st.mv.pos > 0.8 ? -12 : 12)}" y="${y - 10}" text-anchor="${st.mv.pos > 0.8 ? 'end' : 'start'}" font-size="13" font-weight="700" fill="${colorOf(kd)}" paint-order="stroke" stroke="#fff" stroke-width="4">${kd === 'Z' ? '0 N' : fmt(v) + ' N ' + kd}</text>`;
+  }
+  chart.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  chart.innerHTML = o;
+
+  // stats
+  let iMax = 0, iMin = 0;
+  vals.forEach((v, i) => { if (v > vals[iMax]) iMax = i; if (v < vals[iMin]) iMin = i; });
+  const where = i => posInfo(pts[i][0]).where;
+  const tmax = vals[iMax] > 1e-6 ? `<span class="T">${fmt(vals[iMax])} N T</span> (weight ${where(iMax)})` : '<span class="muted">never in tension</span>';
+  const cmax = vals[iMin] < -1e-6 ? `<span class="C">${fmt(vals[iMin])} N C</span> (weight ${where(iMin)})` : '<span class="muted">never in compression</span>';
+  document.getElementById('chartStats').innerHTML =
+    `<span>Max tension: ${tmax}</span><span>Max compression: ${cmax}</span>` +
+    (vals[iMax] > 1e-6 && vals[iMin] < -1e-6 ? '<span><b>⚠ This member switches between T and C!</b></span>' : '');
+}
+
+// ---------- Animation ----------
+let lastT = null;
+function tick(t) {
+  if (!st.mv.playing) { lastT = null; return; }
+  if (lastT != null) {
+    st.mv.pos += (t - lastT) / 1000 / st.mv.time;
+    if (st.mv.pos >= 1) { st.mv.pos = 1; st.mv.playing = false; }   // stop at the far end
+  }
+  lastT = t;
+  render();
+  if (st.mv.playing) requestAnimationFrame(tick); else lastT = null;
+}
+document.getElementById('mvPlay').onclick = () => {
+  if (st.mv.playing) { st.mv.playing = false; render(); return; }
+  if (!st.mv.on) { st.mv.on = true; document.getElementById('mvOn').checked = true; }
+  if (st.mv.pos >= 1) st.mv.pos = 0;
+  st.mv.playing = true; requestAnimationFrame(tick);
+};
+document.getElementById('mvOn').onchange = e => { st.mv.on = e.target.checked; if (!st.mv.on) st.mv.playing = false; render(); };
+document.getElementById('mvPos').oninput = e => { st.mv.pos = e.target.value / 1000; st.mv.playing = false; if (!st.mv.on) { st.mv.on = true; document.getElementById('mvOn').checked = true; } render(); };
+document.getElementById('pathDeck').onclick = () => { st.mv.path = 'deck'; render(); };
+document.getElementById('pathTop').onclick = () => { st.mv.path = 'top'; render(); };
+document.getElementById('mvMass').onchange = e => { st.mv.N = e.target.value * G; render(); };
+document.getElementById('mvSpeed').oninput = e => { st.mv.time = +e.target.value; render(); };
+document.getElementById('memberSel').onchange = e => { st.selMember = +e.target.value; render(); };
+
+// ---------- Interaction ----------
+svg.addEventListener('click', e => {
+  const g = e.target.closest('.joint');
+  if (g) {
+    const i = +g.dataset.j;
+    st.sel = i;
+    if (st.mode === 'add') st.loads[i].push(st.addN);
+    else if (st.mode === 'remove') st.loads[i].pop();
+    render(); return;
+  }
+  const m = e.target.closest('.member');
+  if (m) { st.selMember = +m.dataset.m; render(); }
+});
+document.getElementById('table').addEventListener('click', e => {
+  const r = e.target.closest('tr[data-m]'); if (r) { st.selMember = +r.dataset.m; render(); }
+});
+
+function hl(k, on) {
+  document.querySelectorAll(`[data-m="${k}"]`).forEach(el => el.classList.toggle('hl', on));
+}
+for (const root of [svg, document.getElementById('table')]) {
+  root.addEventListener('mouseover', e => { const el = e.target.closest('[data-m]'); if (el) hl(el.dataset.m, true); });
+  root.addEventListener('mouseout', e => { const el = e.target.closest('[data-m]'); if (el) hl(el.dataset.m, false); });
+}
+
+const WEIGHTS = [50, 100, 200, 500, 1000];
+const wBox = document.getElementById('weights');
+function renderWeights() {
+  wBox.innerHTML = WEIGHTS.map(g => {
+    const N = g / 1000 * G;
+    return `<button data-g="${g}" class="${Math.abs(N - st.addN) < 1e-9 ? 'on' : ''}">${g >= 1000 ? g / 1000 + ' kg' : g + ' g'}</button>`;
+  }).join('') + `<span class="muted" style="align-self:center">= ${fmt(st.addN)} N</span>`;
+}
+wBox.addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  st.addN = +b.dataset.g / 1000 * G; renderWeights(); render();
+});
+document.getElementById('useCustom').onclick = () => {
+  const v = parseFloat(document.getElementById('customN').value);
+  if (v > 0) { st.addN = v; renderWeights(); render(); }
+};
+const modes = { modeAdd: 'add', modeRemove: 'remove', modeSelect: 'select' };
+Object.entries(modes).forEach(([id, m]) => document.getElementById(id).onclick = () => {
+  st.mode = m;
+  Object.keys(modes).forEach(o => document.getElementById(o).classList.toggle('on', o === id));
+});
+
+const preset = f => { st.loads = st.loads.map(() => []); f(); render(); };
+document.getElementById('presetCenter').onclick = () => preset(() => { st.loads[3] = [1 * G]; st.sel = 3; });
+document.getElementById('presetTop').onclick = () => preset(() => { st.loads[U(3)] = [1 * G]; st.sel = U(3); });
+document.getElementById('presetUniform').onclick = () => preset(() => { for (let i = 1; i <= 5; i++) st.loads[i] = [0.5 * G]; });
+document.getElementById('presetTopAll').onclick = () => preset(() => { for (let i = 1; i <= 5; i++) st.loads[U(i)] = [0.5 * G]; });
+document.getElementById('presetEnd').onclick = () => preset(() => { st.loads[1] = [1 * G]; st.sel = 1; });
+document.getElementById('clearAll').onclick = () => preset(() => {});
+
+const pw = document.getElementById('pw'), ph = document.getElementById('ph');
+const geo = () => {
+  st.p = pw.value / 100; st.h = ph.value / 100;
+  document.getElementById('pwv').textContent = pw.value + ' cm';
+  document.getElementById('phv').textContent = ph.value + ' cm';
+  render();
+};
+pw.oninput = ph.oninput = geo;
+document.getElementById('showLabels').onchange = e => { st.showLabels = e.target.checked; render(); };
+document.getElementById('showNames').onchange = e => { st.showNames = e.target.checked; render(); };
+
+renderWeights();
+geo();
+</script>
