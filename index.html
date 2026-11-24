@@ -79,14 +79,14 @@
       <h2>Moving weight</h2>
       <div class="row">
         <label><input type="checkbox" id="mvOn"> Send a weight across the bridge</label>
-        <button id="mvPlay" class="go">▶ Play</button>
+        <button id="mvPlay" class="go">&#x25B6; Play</button>
         <span id="mvShare" class="muted"></span>
       </div>
       <div class="mv-controls" id="mvControls">
         <span>Position</span>
         <div class="row" style="margin:0"><input type="range" id="mvPos" min="0" max="1000" value="0"><span id="mvPosTxt" style="width:110px"></span></div>
         <span>Travels along</span>
-        <div class="btns"><button id="pathDeck" class="on">Deck (L0 → L6)</button><button id="pathTop">Top chord (U1 → U5)</button></div>
+        <div class="btns"><button id="pathDeck" class="on">Deck (L0 &#x2192; L6)</button><button id="pathTop">Top chord (U1 &#x2192; U5)</button></div>
         <span>Moving weight</span>
         <div class="row" style="margin:0"><select id="mvMass"><option value="0.2">200 g</option><option value="0.5">500 g</option><option value="1" selected>1 kg</option><option value="2">2 kg</option></select><span id="mvMassN" class="muted"></span></div>
         <span>Crossing time</span>
@@ -103,9 +103,9 @@
       <h2>How it works</h2>
       <ul class="notes">
         <li>The bridge is modeled as an ideal 2D truss: pin joints, straight two-force members, weight of the members neglected.</li>
-        <li>Supports: <b>pin</b> at L0 (left) and <b>roller</b> at L6 (right). 12 joints, 21 members, 3 reactions: 2·12 = 21 + 3, so it is statically determinate.</li>
-        <li>Forces are found with the <b>method of joints</b>: at every joint ΣF<sub>x</sub> = 0 and ΣF<sub>y</sub> = 0, solved all at once.</li>
-        <li>Loads can act on the deck joints (L) or the top joints (U). Weights use g = 9.81 m/s² (500 g → 4.91 N).</li>
+        <li>Supports: <b>pin</b> at L0 (left) and <b>roller</b> at L6 (right). 12 joints, 21 members, 3 reactions: 2&#xB7;12 = 21 + 3, so it is statically determinate.</li>
+        <li>Forces are found with the <b>method of joints</b>: at every joint &#x3A3;F<sub>x</sub> = 0 and &#x3A3;F<sub>y</sub> = 0, solved all at once.</li>
+        <li>Loads can act on the deck joints (L) or the top joints (U). Weights use g = 9.81 m/s&#xB2; (500 g &#x2192; 4.91 N).</li>
         <li>A moving weight between two joints is shared by those joints in proportion to how close it is (like a deck plank resting on two floor beams). At 25 % of the way from L2 to L3, L2 carries 75 % and L3 carries 25 %.</li>
         <li>The graph is the member's <b>influence line</b>: its force for every position of the weight. Look for members that switch between T and C as the weight passes!</li>
       </ul>
@@ -114,19 +114,19 @@
 
   <aside>
     <div class="card">
-      <h2>1 · Choose a weight</h2>
+      <h2>1 &#xB7; Choose a weight</h2>
       <div class="btns" id="weights"></div>
       <div class="row">
         <label>Custom: <input type="number" id="customN" min="0" step="0.1" value="5"> N</label>
         <button id="useCustom">Use</button>
       </div>
-      <h2 style="margin-top:12px">2 · Clicking a joint will…</h2>
+      <h2 style="margin-top:12px">2 &#xB7; Clicking a joint will&#x2026;</h2>
       <div class="btns">
         <button id="modeAdd" class="on">Add weight</button>
         <button id="modeRemove">Remove one weight</button>
         <button id="modeSelect">Just select</button>
       </div>
-      <p class="muted" style="margin:8px 0 0">Works on deck joints L0–L6 and top joints U1–U5.</p>
+      <p class="muted" style="margin:8px 0 0">Works on deck joints L0&#x2013;L6 and top joints U1&#x2013;U5.</p>
     </div>
 
     <div class="card">
@@ -177,7 +177,7 @@ const st = {
   mode: 'add',
   addN: 0.5 * G,
   showLabels: true, showNames: true,
-  selMember: 2,                           // member plotted in the chart (L2–L3)
+  selMember: 2,                           // member plotted in the chart (L2\u2013L3)
   mv: { on: false, pos: 0, N: 1 * G, path: 'deck', playing: false, time: 8 },
 };
 
@@ -198,7 +198,7 @@ function joints() {
   for (let i = 1; i <= 5; i++) J.push({ name: 'U' + i, x: i * st.p, y: st.h, bottom: false });
   return J;
 }
-const mName = (J, k) => `${J[MEMBERS[k].a].name}–${J[MEMBERS[k].b].name}`;
+const mName = (J, k) => `${J[MEMBERS[k].a].name}\u2013${J[MEMBERS[k].b].name}`;
 
 // ---------- Loads ----------
 const fixedAt = i => st.loads[i].reduce((s, v) => s + v, 0);
@@ -210,7 +210,7 @@ function movingShares(pos) {
   const j0 = top ? U(i + 1) : i, j1 = top ? U(i + 2) : i + 1;
   return [{ j: j0, f: 1 - t }, { j: j1, f: t }];
 }
-function loadVector(pos) {             // pos = null → fixed weights only
+function loadVector(pos) {             // pos = null \u2192 fixed weights only
   const P = st.loads.map((_, i) => fixedAt(i));
   if (pos != null) movingShares(pos).forEach(({ j, f }) => P[j] += f * st.mv.N);
   return P;
@@ -230,8 +230,8 @@ function solve(J, P) {
     A[2 * m.b][k] -= ex; A[2 * m.b + 1][k] -= ey;
   });
   A[2 * PIN][nm] = 1; A[2 * PIN + 1][nm + 1] = 1; A[2 * ROLLER + 1][nm + 2] = 1;
-  J.forEach((_, i) => { b[2 * i + 1] = P[i]; }); // ΣF + (−P) = 0  →  A·x = P
-  for (let c = 0; c < n; c++) {                  // Gauss–Jordan with partial pivoting
+  J.forEach((_, i) => { b[2 * i + 1] = P[i]; }); // \u03A3F + (\u2212P) = 0  \u2192  A\u00B7x = P
+  for (let c = 0; c < n; c++) {                  // Gauss\u2013Jordan with partial pivoting
     let piv = c;
     for (let r = c + 1; r < rows; r++) if (Math.abs(A[r][c]) > Math.abs(A[piv][c])) piv = r;
     [A[c], A[piv]] = [A[piv], A[c]]; [b[c], b[piv]] = [b[piv], b[c]];
@@ -258,7 +258,7 @@ function posInfo(pos) {                 // distance from the start joint and whe
   const top = st.mv.path === 'top', n = top ? 4 : 6, s = pos * n;
   const name = i => top ? 'U' + (i + 1) : 'L' + i;
   const i = Math.round(s);
-  const where = Math.abs(s - i) < 1e-3 ? `at ${name(i)}` : `${name(Math.floor(s))}–${name(Math.floor(s) + 1)}`;
+  const where = Math.abs(s - i) < 1e-3 ? `at ${name(i)}` : `${name(Math.floor(s))}\u2013${name(Math.floor(s) + 1)}`;
   return { cm: s * st.p * 100, where };
 }
 
@@ -311,7 +311,7 @@ function render() {
     const a = J[m.a], c = J[m.b], F = res.F[k], kd = kind(F, totalLoad);
     const w = totalLoad > 0 ? 5 + 9 * Math.abs(F) / maxF : 7;
     const col = totalLoad > 0 ? colorOf(kd) : '#5b8399';
-    out += `<g class="member" data-m="${k}"><title>${a.name}–${c.name}: ${fmt(F)} N ${kd === 'Z' ? '(zero)' : kd} — click to plot</title>
+    out += `<g class="member" data-m="${k}"><title>${a.name}\u2013${c.name}: ${fmt(F)} N ${kd === 'Z' ? '(zero)' : kd} \u2014 click to plot</title>
       <line class="bar" x1="${X(a.x)}" y1="${Y(a.y)}" x2="${X(c.x)}" y2="${Y(c.y)}" stroke="${col}" stroke-width="${w}" stroke-linecap="round"/>
       <line x1="${X(a.x)}" y1="${Y(a.y)}" x2="${X(c.x)}" y2="${Y(c.y)}" stroke="transparent" stroke-width="18"/></g>`;
   });
@@ -342,7 +342,7 @@ function render() {
     const x = X(xw), y = Y(topPath ? st.h : 0);
     out += `<g pointer-events="none">
       <rect x="${x - 42}" y="${y - 42}" width="84" height="26" rx="5" fill="var(--move)" stroke="#9a3412" stroke-width="2"/>
-      <text x="${x}" y="${y - 25}" text-anchor="middle" font-size="11" font-weight="700" fill="#fff">${massTxt(st.mv.N)} · ${fmt(st.mv.N)} N</text>
+      <text x="${x}" y="${y - 25}" text-anchor="middle" font-size="11" font-weight="700" fill="#fff">${massTxt(st.mv.N)} \u00B7 ${fmt(st.mv.N)} N</text>
       <circle cx="${x - 22}" cy="${y - 11}" r="6" fill="#374151"/><circle cx="${x + 22}" cy="${y - 11}" r="6" fill="#374151"/></g>`;
   }
 
@@ -371,7 +371,7 @@ function render() {
 
   svg.innerHTML = out;
   document.getElementById('totals').innerHTML =
-    `Total load: <b>${fmt(totalLoad)} N</b> · R<sub>L</sub> + R<sub>R</sub> = <b>${fmt(res.RyL + res.RyR)} N</b>`;
+    `Total load: <b>${fmt(totalLoad)} N</b> \u00B7 R<sub>L</sub> + R<sub>R</sub> = <b>${fmt(res.RyL + res.RyR)} N</b>`;
   renderTable(J, res, totalLoad);
   renderSel(J);
   renderMoving(J, res);
@@ -385,8 +385,8 @@ function renderTable(J, res, totalLoad) {
       <td class="num">${fmt(F)}</td><td class="${kd}">${kd === 'Z' ? '0' : kd}</td></tr>`;
   });
   h += `<tr><td colspan="4" class="muted" style="padding-top:10px">Reactions</td></tr>
-    <tr><td>L0 (pin)</td><td class="muted">vertical</td><td class="num">${fmt(res.RyL)}</td><td>↑</td></tr>
-    <tr><td>L6 (roller)</td><td class="muted">vertical</td><td class="num">${fmt(res.RyR)}</td><td>↑</td></tr>`;
+    <tr><td>L0 (pin)</td><td class="muted">vertical</td><td class="num">${fmt(res.RyL)}</td><td>\u2191</td></tr>
+    <tr><td>L6 (roller)</td><td class="muted">vertical</td><td class="num">${fmt(res.RyR)}</td><td>\u2191</td></tr>`;
   document.getElementById('table').innerHTML = h;
 }
 
@@ -400,7 +400,7 @@ function renderSel(J) {
     Load: <b>${fmt(Pf)} N</b> <span class="muted">(${massTxt(Pf)})</span>
     <div class="muted" style="margin:4px 0">${list.length ? 'Weights: ' + list.map(massTxt).join(' + ') : 'No weights here.'}</div>
     <div class="row"><label>Set load to <input type="number" id="setN" min="0" step="0.1" value="${Pf.toFixed(2)}"> N</label><button id="applyN">Set</button></div>
-    <div class="btns"><button id="selAdd">+ ${massTxt(st.addN)}</button><button id="selRem">− last weight</button><button id="selClr" class="danger">Clear joint</button></div>`;
+    <div class="btns"><button id="selAdd">+ ${massTxt(st.addN)}</button><button id="selRem">\u2212 last weight</button><button id="selClr" class="danger">Clear joint</button></div>`;
   document.getElementById('applyN').onclick = () => {
     const v = parseFloat(document.getElementById('setN').value);
     st.loads[i] = v > 0 ? [v] : []; render();
@@ -434,7 +434,7 @@ function renderMoving(J, res) {
   // controls
   document.getElementById('mvControls').classList.toggle('disabled', !st.mv.on);
   const play = document.getElementById('mvPlay');
-  play.textContent = st.mv.playing ? '❚❚ Pause' : '▶ Play';
+  play.textContent = st.mv.playing ? '\u275A\u275A Pause' : '\u25B6 Play';
   document.getElementById('mvPos').value = Math.round(st.mv.pos * 1000);
   const pi = posInfo(st.mv.pos);
   document.getElementById('mvPosTxt').textContent = `${pi.cm.toFixed(1)} cm (${pi.where})`;
@@ -501,7 +501,7 @@ function renderMoving(J, res) {
   const cmax = vals[iMin] < -1e-6 ? `<span class="C">${fmt(vals[iMin])} N C</span> (weight ${where(iMin)})` : '<span class="muted">never in compression</span>';
   document.getElementById('chartStats').innerHTML =
     `<span>Max tension: ${tmax}</span><span>Max compression: ${cmax}</span>` +
-    (vals[iMax] > 1e-6 && vals[iMin] < -1e-6 ? '<span><b>⚠ This member switches between T and C!</b></span>' : '');
+    (vals[iMax] > 1e-6 && vals[iMin] < -1e-6 ? '<span><b>\u26A0 This member switches between T and C!</b></span>' : '');
 }
 
 // ---------- Animation ----------
